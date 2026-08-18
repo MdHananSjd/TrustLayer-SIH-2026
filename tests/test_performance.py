@@ -68,13 +68,13 @@ def test_empty_y_true_raises_error():
             y_pred=[],
         )
 
-def test_empty_y_true_raises_error():
+def test_mismatched_lengths_raise_error():
 
     with pytest.raises(ValueError):
 
         evaluate_performance(
-            y_true=[],
-            y_pred=[],
+            y_true=[1, 0, 1],
+            y_pred=[1, 0],
         )
 def test_missing_scores_returns_none_auc():
 
@@ -85,4 +85,3 @@ def test_missing_scores_returns_none_auc():
 
     assert result["roc_auc"] is None
 
-    
