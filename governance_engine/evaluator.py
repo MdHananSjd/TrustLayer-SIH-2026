@@ -2,12 +2,18 @@ from typing import Any
 
 import pandas as pd
 
-from governance_engine.performance import evaluate_performance
+from governance_engine.performance import (
+    evaluate_performance,
+)
+
 from governance_engine.fairness import (
     evaluate_fairness,
     evaluate_intersectional_fairness,
 )
-from governance_engine.proxy_detection import detect_proxy_features
+
+from governance_engine.proxy_detection import (
+    detect_proxy_features,
+)
 
 
 def run_evaluation(
@@ -19,83 +25,60 @@ def run_evaluation(
     positive_label: Any = 1,
     intersectional_attributes: list[str] | None = None,
     target_column: str | None = None,
+    all_sensitive_attributes: list[str] | None = None,
     proxy_threshold: float = 0.5,
     min_intersection_group_size: int = 5,
 ):
     """
-    Run the complete TrustLayer performance and fairness audit.
+    Run the complete performance and fairness evaluation.
 
-    Parameters
-    ----------
-    y_true:
-        Ground-truth labels.
+    This function is the main orchestration layer for the
+    fairness/evaluation module.
 
-    y_pred:
-        Model predictions.
+    It combines:
 
-    evaluation_dataframe:
-        Evaluation dataset containing model features and
-        sensitive attributes.
+    - predictive performance
+    - basic group fairness
+    - optional intersectional fairness
+    - potential proxy-feature analysis
 
-    sensitive_attribute:
-        Main sensitive attribute to audit.
-
-    y_score:
-        Optional probability/score for the positive class.
-
-    positive_label:
-        Label representing the positive outcome.
-
-    intersectional_attributes:
-        Optional list of sensitive/demographic columns to
-        combine for intersectional analysis.
-
-        Example:
-        ["gender", "age_group"]
-
-    target_column:
-        Optional target column that should be excluded from
-        proxy-feature scanning.
-
-    proxy_threshold:
-        Association threshold above which a feature is
-        flagged for proxy review.
-
-    min_intersection_group_size:
-        Smallest subgroup size allowed in intersectional
-        analysis.
-
-    Returns
-    -------
-    dict
-        JSON-serializable performance and fairness audit.
+    It returns JSON-serializable data for the backend.
     """
 
-    # ---------------------------------------------------------
-    # 1. Validate dataframe
-    # ---------------------------------------------------------
+    # =========================================================
+    # 1. Basic validation
+    # =========================================================
 
-    if sensitive_attribute not in evaluation_dataframe.columns:
+    if len(y_true) == 0:
         raise ValueError(
-            f"Sensitive attribute '{sensitive_attribute}' "
-            "was not found in evaluation_dataframe."
+            "y_true cannot be empty."
+        )
+
+    if len(y_true) != len(y_pred):
+        raise ValueError(
+            "y_true and y_pred must contain "
+            "the same number of samples."
         )
 
     if len(evaluation_dataframe) != len(y_true):
         raise ValueError(
-            "evaluation_dataframe must contain the same "
-            "number of rows as y_true."
+            "evaluation_dataframe and y_true must "
+            "contain the same number of rows."
         )
 
-    if len(y_pred) != len(y_true):
+    if (
+        sensitive_attribute
+        not in evaluation_dataframe.columns
+    ):
         raise ValueError(
-            "y_pred must contain the same number of "
-            "samples as y_true."
+            f"Sensitive attribute "
+            f"'{sensitive_attribute}' "
+            "was not found in the evaluation dataframe."
         )
 
-    # ---------------------------------------------------------
-    # 2. Performance audit
-    # ---------------------------------------------------------
+    # =========================================================
+    # 2. Performance evaluation
+    # =========================================================
 
     performance_result = evaluate_performance(
         y_true=y_true,
@@ -104,13 +87,15 @@ def run_evaluation(
         positive_label=positive_label,
     )
 
-    # ---------------------------------------------------------
-    # 3. Basic fairness audit
-    # ---------------------------------------------------------
+    # =========================================================
+    # 3. Basic fairness evaluation
+    # =========================================================
 
-    sensitive_values = evaluation_dataframe[
-        sensitive_attribute
-    ]
+    sensitive_values = (
+        evaluation_dataframe[
+            sensitive_attribute
+        ]
+    )
 
     fairness_result = evaluate_fairness(
         y_true=y_true,
@@ -123,80 +108,118 @@ def run_evaluation(
         "sensitive_attribute"
     ] = sensitive_attribute
 
-    # ---------------------------------------------------------
-    # 4. Intersectional fairness
-    # ---------------------------------------------------------
+    # =========================================================
+    # 4. Intersectional analysis
+    # =========================================================
 
     intersectional_result = None
 
     if intersectional_attributes:
 
+        if len(intersectional_attributes) < 2:
+            raise ValueError(
+                "Intersectional fairness requires "
+                "at least two attributes."
+            )
+
         missing_columns = [
             column
-            for column in intersectional_attributes
-            if column not in evaluation_dataframe.columns
+            for column
+            in intersectional_attributes
+            if column
+            not in evaluation_dataframe.columns
         ]
 
         if missing_columns:
             raise ValueError(
-                "Intersectional attributes not found: "
-                + ", ".join(missing_columns)
-            )
-
-        if len(intersectional_attributes) >= 2:
-
-            intersectional_data = {
-                column:
-                    evaluation_dataframe[
-                        column
-                    ].tolist()
-
-                for column
-                in intersectional_attributes
-            }
-
-            intersectional_result = (
-                evaluate_intersectional_fairness(
-                    y_true=y_true,
-                    y_pred=y_pred,
-                    sensitive_attributes=
-                        intersectional_data,
-                    positive_label=
-                        positive_label,
-                    min_group_size=
-                        min_intersection_group_size,
+                "Missing intersectional attributes: "
+                + ", ".join(
+                    missing_columns
                 )
             )
 
-    # ---------------------------------------------------------
-    # 5. Proxy-feature analysis
-    # ---------------------------------------------------------
+        intersectional_data = {
+            column:
+                evaluation_dataframe[
+                    column
+                ].tolist()
 
-    exclude_columns = []
+            for column
+            in intersectional_attributes
+        }
 
+        intersectional_result = (
+            evaluate_intersectional_fairness(
+                y_true=y_true,
+                y_pred=y_pred,
+
+                sensitive_attributes=
+                    intersectional_data,
+
+                positive_label=
+                    positive_label,
+
+                min_group_size=
+                    min_intersection_group_size,
+            )
+        )
+
+    # =========================================================
+    # 5. Build proxy exclusion list
+    # =========================================================
+
+    excluded_columns = []
+
+    # Do not scan the target as a potential proxy.
     if target_column is not None:
-        exclude_columns.append(
+        excluded_columns.append(
             target_column
         )
 
+    # Do not treat known sensitive attributes as
+    # ordinary proxy candidates.
+    if all_sensitive_attributes:
+
+        excluded_columns.extend(
+            all_sensitive_attributes
+        )
+
+    # Remove duplicates.
+    excluded_columns = list(
+        set(
+            excluded_columns
+        )
+    )
+
+    # =========================================================
+    # 6. Proxy-feature analysis
+    # =========================================================
+
     proxy_result = detect_proxy_features(
-        dataframe=evaluation_dataframe,
+        dataframe=
+            evaluation_dataframe,
+
         sensitive_attribute=
             sensitive_attribute,
+
         exclude_columns=
-            exclude_columns,
+            excluded_columns,
+
         threshold=
             proxy_threshold,
     )
 
-    # ---------------------------------------------------------
-    # 6. Final JSON-safe result
-    # ---------------------------------------------------------
+    # =========================================================
+    # 7. Final output
+    # =========================================================
 
     return {
-        "performance": performance_result,
+
+        "performance":
+            performance_result,
 
         "fairness": {
+
             **fairness_result,
 
             "intersectional":
