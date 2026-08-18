@@ -1,0 +1,42 @@
+{
+  "project_name": "AegisAI Responsible AI Governance Demo",
+  "version": "1.0.0",
+  "created_for": "Smart India Hackathon (SIH) 48-Hour MVP",
+  "target": "approved",
+  "positive_label": 1,
+  "negative_label": 0,
+  "training_seed": 42,
+  "sensitive_features": [
+    "gender"
+  ],
+  "features": [
+    "age",
+    "gender",
+    "income",
+    "credit_score",
+    "debt_ratio",
+    "employment_years",
+    "region"
+  ],
+  "feature_types": {
+    "age": "numerical",
+    "gender": "categorical",
+    "income": "numerical",
+    "credit_score": "numerical",
+    "debt_ratio": "numerical",
+    "employment_years": "numerical",
+    "region": "categorical"
+  },
+  "models": {
+    "biased_model": {
+      "file_name": "biased_model.pkl",
+      "model_type": "DecisionTreeClassifier",
+      "description": "Baseline model trained with sensitive attribute 'gender' included in features to demonstrate disparate impact."
+    },
+    "improved_model": {
+      "file_name": "improved_model.pkl",
+      "model_type": "RandomForestClassifier",
+      "description": "Mitigated model trained using demographic blindness (gender excluded during preprocessing) to ensure fairer approval parity."
+    }
+  }
+}
