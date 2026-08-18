@@ -1,29 +1,29 @@
 from typing import Dict, Any, List, Tuple
 from app.models.schemas import PolicyRule
-
+#change accurary to <= 0.15
 DEFAULT_POLICIES: List[PolicyRule] = [
     PolicyRule(
         metric="fairness.demographic_parity_gap",
         operator="<=",
-        threshold=0.15,
+        threshold=0.20,
         severity="BLOCK"
     ),
     PolicyRule(
         metric="fairness.disparate_impact_ratio",
         operator=">=",
-        threshold=0.80,
+        threshold=0.75,
         severity="BLOCK"
     ),
     PolicyRule(
         metric="fairness.tpr_gap",
         operator="<=",
-        threshold=0.10,
+        threshold=0.13,
         severity="WARNING"
     ),
     PolicyRule(
         metric="performance.accuracy",
         operator=">=",
-        threshold=0.75,
+        threshold=0.85,
         severity="BLOCK"
     ),
 ]

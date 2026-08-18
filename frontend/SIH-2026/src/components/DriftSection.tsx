@@ -9,34 +9,45 @@ export const DriftSection: React.FC<DriftSectionProps> = ({ drift }) => {
   if (drift.status === "NOT_RUN") return null;
 
   const isWarning = drift.status === "WARNING" || drift.status === "FAIL";
+  
+  const statusColorClass = isWarning 
+    ? "bg-amber-50 border-amber-300 text-amber-800" 
+    : "bg-emerald-50 border-emerald-300 text-emerald-800";
 
   return (
-    <div
-      className={`p-6 mt-8 rounded-lg border shadow-sm ${isWarning ? "bg-yellow-50 border-yellow-300" : "bg-green-50 border-green-300"}`}
-    >
-      <h3
-        className={`text-lg font-bold mb-2 ${isWarning ? "text-yellow-800" : "text-green-800"}`}
-      >
-        Production Monitoring: Data Drift Detected
-      </h3>
+    <div className={`p-6 border shadow-sm ${statusColorClass} mt-6`}>
+      <div className="flex justify-between items-center mb-3 pb-1 border-b border-current/20">
+        <h3 className="text-xs font-mono uppercase tracking-widest font-extrabold">
+          Production Monitoring: Feature Drift Checks
+        </h3>
+        <span className="text-[9px] font-mono opacity-80">
+          MONITOR_DRIFT
+        </span>
+      </div>
+
       {isWarning ? (
-        <>
-          <p className="text-sm text-yellow-700 mb-3">
-            Distribution shifts detected between reference evaluation data and
-            Month 2 production batches[cite: 2].
+        <div className="space-y-3 font-mono text-xs">
+          <p className="opacity-90">
+            Distribution shifts detected between baseline validation and production data streams:
           </p>
-          <ul className="list-disc pl-5">
-            {drift.features.map((feature, idx) => (
-              <li key={idx} className="text-sm font-semibold text-yellow-900">
-                Feature: {feature} (Wasserstein Distance threshold exceeded)
-              </li>
-            ))}
+          <ul className="list-none pl-1 space-y-1">
+            {drift.features.map((featureItem, idx) => {
+              // Gracefully handle both string lists and dictionary lists from different API variants
+              const name = typeof featureItem === "object" && featureItem !== null 
+                ? (featureItem as any).feature 
+                : featureItem;
+              return (
+                <li key={idx} className="flex items-center text-[11px] font-bold text-amber-900">
+                  <span className="mr-2">[-]</span>
+                  <span>Feature: {name} (Wasserstein threshold exceeded)</span>
+                </li>
+              );
+            })}
           </ul>
-        </>
+        </div>
       ) : (
-        <p className="text-sm text-green-700">
-          No significant feature drift detected in the current production
-          window.
+        <p className="font-mono text-xs opacity-90">
+          [+] No significant feature distribution drift detected in current production monitoring window.
         </p>
       )}
     </div>

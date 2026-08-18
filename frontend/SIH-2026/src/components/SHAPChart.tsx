@@ -15,46 +15,65 @@ interface SHAPChartProps {
 }
 
 export const SHAPChart: React.FC<SHAPChartProps> = ({ features }) => {
-  // Sort features by importance descending
   const sortedFeatures = [...features].sort(
     (a, b) => b.importance - a.importance,
   );
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-      <div className="mb-6">
-        <h3 className="text-lg font-bold text-gray-800">
-          Global Explainability (SHAP)
-        </h3>
-        <p className="text-sm text-gray-500">
-          Top driving features across all predictions.
-        </p>
+    <div className="bg-white p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+      <div>
+        <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+          <h3 className="text-sm font-mono uppercase tracking-widest text-slate-800 font-bold">
+            [03] Global Feature Attribution (SHAP)
+          </h3>
+          <span className="text-[10px] font-mono text-slate-400">
+            MEAN_ABS_SHAP
+          </span>
+        </div>
+
+        <div className="h-64 w-full mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              layout="vertical"
+              data={sortedFeatures}
+              margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+              <XAxis 
+                type="number" 
+                domain={[0, "dataMax + 0.05"]} 
+                tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'monospace' }}
+                axisLine={{ stroke: '#cbd5e1' }}
+              />
+              <YAxis
+                dataKey="feature"
+                type="category"
+                width={85}
+                tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'monospace' }}
+                axisLine={{ stroke: '#cbd5e1' }}
+              />
+              <Tooltip 
+                cursor={{ fill: "#f1f5f9" }}
+                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '4px', fontFamily: 'monospace', fontSize: '11px' }}
+                formatter={(value: any) => {
+                  const numValue = typeof value === 'number' ? value : Number(value) || 0;
+                  return [numValue.toFixed(3), "Mean |SHAP|"];
+                }}
+              />
+              <Bar
+                dataKey="importance"
+                name="Mean |SHAP Value|"
+                fill="#475569"
+                radius={[0, 2, 2, 0]}
+                barSize={20}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
-      <div className="h-72 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            layout="vertical"
-            data={sortedFeatures}
-            margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" domain={[0, "dataMax + 0.1"]} />
-            <YAxis
-              dataKey="feature"
-              type="category"
-              width={100}
-              tick={{ fontSize: 12 }}
-            />
-            <Tooltip cursor={{ fill: "#f3f4f6" }} />
-            <Bar
-              dataKey="importance"
-              name="Mean |SHAP Value|"
-              fill="#0ea5e9"
-              radius={[0, 4, 4, 0]}
-              barSize={24}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+      
+      <div className="mt-4 pt-3 border-t border-slate-100 text-[9px] font-mono text-slate-400">
+        * Relates feature attributions to decision impacts across the dataset.
       </div>
     </div>
   );

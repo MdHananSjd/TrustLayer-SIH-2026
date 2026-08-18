@@ -1,6 +1,7 @@
 export interface ModelMetadata {
   name: string;
   version: string;
+  id?: string;
 }
 
 export interface PerformanceMetrics {

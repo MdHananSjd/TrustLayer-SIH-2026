@@ -52,6 +52,8 @@ describe("ModelSelector Component", () => {
       mockModelFile,
       mockDataFile,
       "",
+      "approved",
+      "gender",
     );
   });
 
