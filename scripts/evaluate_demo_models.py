@@ -24,28 +24,32 @@ def run_and_print(
     print("=" * 70)
 
     result = audit_model_from_files(
+    model_path=(
+        MODELS_DIR
+        / model_filename
+    ),
 
-        model_path=(
-            MODELS_DIR
-            / model_filename
-        ),
+    evaluation_csv_path=(
+        ASSETS_DIR
+        / "test_02.csv"
+    ),
 
-        evaluation_csv_path=(
-            ASSETS_DIR
-            / "test_02.csv"
-        ),
+    metadata_path=(
+        ASSETS_DIR
+        / metadata_filename
+    ),
 
-        metadata_path=(
-            ASSETS_DIR
-            / metadata_filename
-        ),
+    sensitive_attribute="gender",
 
-        sensitive_attribute="gender",
+    intersectional_attributes=[
+        "gender",
+        "age_group",
+    ],
 
-        proxy_threshold=0.5,
+    proxy_threshold=0.5,
 
-        min_intersection_group_size=10,
-    )
+    min_intersection_group_size=10,
+)
 
     print(
         json.dumps(
