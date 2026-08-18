@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.routers import api
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -16,9 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def home():
-    return {
-        "server" : "online",
-        "message": "Welcome to TrustLayer Backend"
-    }
+app.include_router(api.router, prefix=settings.API_V1_STR)
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "service": settings.PROJECT_NAME}
