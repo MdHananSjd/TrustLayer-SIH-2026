@@ -15,7 +15,7 @@ export const ReportAction: React.FC<ReportActionProps> = ({
     setIsGenerating(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/models/${modelId}/audits/${auditId}/report`,
+        `http://localhost:8000/api/v1/audits/${auditId}/report`,
         {
           method: "GET",
           headers: { Accept: "application/pdf" },
@@ -38,7 +38,6 @@ export const ReportAction: React.FC<ReportActionProps> = ({
         "Backend unavailable, generating fallback dummy PDF for demo.",
         error,
       );
-      // Fallback: Create a text file disguised as a demo report if the backend fails[cite: 2]
       const blob = new Blob(
         [
           "TrustLayer Audit Report\n\nStatus: PASS\nThis is a fallback generated document because the backend was unreachable.",
@@ -61,13 +60,13 @@ export const ReportAction: React.FC<ReportActionProps> = ({
     <button
       onClick={handleDownload}
       disabled={isGenerating}
-      className={`px-4 py-2 text-sm font-medium rounded-md text-white shadow-sm transition-colors ${
+      className={`px-4 py-2 text-xs font-mono uppercase tracking-wider rounded-sm text-white shadow-sm transition-colors border ${
         isGenerating
-          ? "bg-gray-600 cursor-not-allowed"
-          : "bg-gray-800 hover:bg-gray-700"
+          ? "bg-slate-700 border-slate-600 cursor-not-allowed"
+          : "bg-slate-900 border-slate-800 hover:bg-slate-800 hover:text-blue-400"
       }`}
     >
-      {isGenerating ? "Generating PDF..." : "Export Audit PDF"}
+      {isGenerating ? "Generating..." : "Export Audit PDF"}
     </button>
   );
 };
