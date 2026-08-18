@@ -12,6 +12,8 @@ export const auditApi = {
     modelFile: File | null,
     dataFile: File | null,
     preloadedId: string,
+    targetField?: string,
+    sensitiveField?: string,
   ): Promise<AuditResponse> => {
     try {
       let activeModelId = preloadedId;
@@ -38,8 +40,8 @@ export const auditApi = {
           name: modelFile.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " "),
           version: "1.0",
           owner: "Auditor Upload",
-          target: "approved",
-          sensitive_attributes: ["gender"]
+          target: targetField || "approved",
+          sensitive_attributes: sensitiveField ? [sensitiveField] : ["gender"]
         };
 
         const regResponse = await fetch(`${API_BASE}/models`, {

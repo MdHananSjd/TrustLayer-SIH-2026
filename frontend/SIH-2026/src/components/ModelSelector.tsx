@@ -5,6 +5,8 @@ interface ModelSelectorProps {
     modelFile: File | null,
     dataFile: File | null,
     preloadedId: string,
+    targetField?: string,
+    sensitiveField?: string,
   ) => void;
   isLoading: boolean;
 }
@@ -17,13 +19,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [preloadedId, setPreloadedId] = useState<string>("LoanApproval_v1");
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [dataFile, setDataFile] = useState<File | null>(null);
+  const [targetColumn, setTargetColumn] = useState<string>("approved");
+  const [sensitiveAttribute, setSensitiveAttribute] = useState<string>("gender");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "preloaded") {
       onRunAudit(null, null, preloadedId);
     } else {
-      onRunAudit(modelFile, dataFile, "");
+      onRunAudit(modelFile, dataFile, "", targetColumn, sensitiveAttribute);
     }
   };
 
@@ -112,6 +116,34 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 data-testid="data-upload"
                 required={mode === "custom"}
               />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-slate-500 mb-2">
+                  Target Column Name
+                </label>
+                <input
+                  type="text"
+                  value={targetColumn}
+                  onChange={(e) => setTargetColumn(e.target.value)}
+                  placeholder="e.g. approved"
+                  className="block w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs py-2 px-3 focus:outline-none focus:border-blue-600"
+                  required={mode === "custom"}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-slate-500 mb-2">
+                  Sensitive Attribute Column
+                </label>
+                <input
+                  type="text"
+                  value={sensitiveAttribute}
+                  onChange={(e) => setSensitiveAttribute(e.target.value)}
+                  placeholder="e.g. gender"
+                  className="block w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs py-2 px-3 focus:outline-none focus:border-blue-600"
+                  required={mode === "custom"}
+                />
+              </div>
             </div>
           </div>
         )}

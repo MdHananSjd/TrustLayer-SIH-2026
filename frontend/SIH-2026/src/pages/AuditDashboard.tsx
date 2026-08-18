@@ -14,6 +14,7 @@ export const AuditDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStep, setLoadingStep] = useState<string>("IDLE");
   const [error, setError] = useState<string | null>(null);
+  const [preloadedId, setPreloadedId] = useState<string>("LoanApproval_v1");
   
   // Auditor Override Form States
   const [reviewerName, setReviewerName] = useState<string>("");
@@ -43,8 +44,11 @@ export const AuditDashboard: React.FC = () => {
   const handleRunAudit = async (
     modelFile: File | null,
     dataFile: File | null,
-    preloadedId: string,
+    selectedId: string,
+    targetField?: string,
+    sensitiveField?: string,
   ) => {
+    setPreloadedId(selectedId || "custom");
     setIsLoading(true);
     setError(null);
     setOverrideStatus(null);
@@ -58,7 +62,9 @@ export const AuditDashboard: React.FC = () => {
       const response = await auditApi.runAudit(
         modelFile,
         dataFile,
-        preloadedId,
+        selectedId,
+        targetField,
+        sensitiveField,
       );
       setAuditData(response);
     } catch (err: any) {
