@@ -24,32 +24,32 @@ def run_and_print(
     print("=" * 70)
 
     result = audit_model_from_files(
-    model_path=(
-        MODELS_DIR
-        / model_filename
-    ),
+        model_path=(
+            MODELS_DIR
+            / model_filename
+        ),
 
-    evaluation_csv_path=(
-        ASSETS_DIR
-        / "test_02.csv"
-    ),
+        evaluation_csv_path=(
+            ASSETS_DIR
+            / "test_03.csv"
+        ),
 
-    metadata_path=(
-        ASSETS_DIR
-        / metadata_filename
-    ),
+        metadata_path=(
+            ASSETS_DIR
+            / metadata_filename
+        ),
 
-    sensitive_attribute="gender",
+        sensitive_attribute="gender",
 
-    intersectional_attributes=[
-        "gender",
-        "age_group",
-    ],
+        intersectional_attributes=[
+            "gender",
+            "age_group",
+        ],
 
-    proxy_threshold=0.5,
+        proxy_threshold=0.5,
 
-    min_intersection_group_size=10,
-)
+        min_intersection_group_size=10,
+    )
 
     print(
         json.dumps(
@@ -65,15 +65,15 @@ def run_and_print(
 if __name__ == "__main__":
 
     biased_result = run_and_print(
-        "BIASED MODEL",
-        "biased_model_02.pkl",
-        "biased_metadata_02.json",
+        "BIASED MODEL V3",
+        "biased_model_03.pkl",
+        "biased_metadata_03.json",
     )
 
     improved_result = run_and_print(
-        "IMPROVED MODEL",
-        "improved_model_02.pkl",
-        "improved_metadata_02.json",
+        "IMPROVED MODEL V3",
+        "improved_model_03.pkl",
+        "improved_metadata_03.json",
     )
 
     print()
@@ -83,38 +83,72 @@ if __name__ == "__main__":
 
     print(
         "Biased accuracy:",
-        biased_result["performance"]["accuracy"],
+        biased_result[
+            "performance"
+        ][
+            "accuracy"
+        ],
     )
 
     print(
         "Improved accuracy:",
-        improved_result["performance"]["accuracy"],
+        improved_result[
+            "performance"
+        ][
+            "accuracy"
+        ],
     )
 
     print(
         "Biased DP gap:",
-        biased_result["fairness"][
+        biased_result[
+            "fairness"
+        ][
             "demographic_parity_gap"
         ],
     )
 
     print(
         "Improved DP gap:",
-        improved_result["fairness"][
+        improved_result[
+            "fairness"
+        ][
             "demographic_parity_gap"
         ],
     )
 
     print(
+        "Biased DI ratio:",
+        biased_result[
+            "fairness"
+        ][
+            "disparate_impact_ratio"
+        ],
+    )
+
+    print(
+        "Improved DI ratio:",
+        improved_result[
+            "fairness"
+        ][
+            "disparate_impact_ratio"
+        ],
+    )
+
+    print(
         "Biased TPR gap:",
-        biased_result["fairness"][
+        biased_result[
+            "fairness"
+        ][
             "tpr_gap"
         ],
     )
 
     print(
         "Improved TPR gap:",
-        improved_result["fairness"][
+        improved_result[
+            "fairness"
+        ][
             "tpr_gap"
         ],
     )
