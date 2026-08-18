@@ -98,6 +98,10 @@ def audit_model_from_files(
     dataframe = load_evaluation_data(
         evaluation_csv_path
     )
+    if "age" in dataframe.columns:
+        dataframe = add_age_group(
+            dataframe
+        )
 
     # =========================================================
     # 4. Load trained model / sklearn Pipeline
