@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     # Project paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
     DEMO_ASSETS_DIR: Path = BASE_DIR / "demo-assets"
+    UPLOAD_DIR: Path = BASE_DIR / "uploads"
     
     class Config:
         case_sensitive = True
