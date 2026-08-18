@@ -17,7 +17,7 @@ MODELS_DIR = BASE_DIR / "demo-models"
 @pytest.mark.skipif(
     not (
         MODELS_DIR
-        / "biased_model_02.pkl"
+        / "biased_model_03.pkl"
     ).exists(),
     reason="Demo model artifacts are unavailable.",
 )
@@ -26,17 +26,17 @@ def test_audit_contract():
     result = audit_model_from_files(
         model_path=(
             MODELS_DIR
-            / "biased_model_02.pkl"
+            / "biased_model_03.pkl"
         ),
 
         evaluation_csv_path=(
             ASSETS_DIR
-            / "test_02.csv"
+            / "test_03.csv"
         ),
 
         metadata_path=(
             ASSETS_DIR
-            / "biased_metadata_02.json"
+            / "biased_metadata_03.json"
         ),
 
         sensitive_attribute="gender",
