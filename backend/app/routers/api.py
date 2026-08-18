@@ -25,12 +25,21 @@ async def upload_artifacts(
     model = audit_store.get_model(model_id)
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
-    return {
-        "model_id": model_id,
-        "model_filename": model_file.filename,
-        "csv_filename": eval_csv.filename,
-        "status": "Artifacts stored"
-    }
+    try:
+        model_content = await model_file.read()
+        csv_content = await eval_csv.read()
+        
+        return audit_store.store_artifacts(
+            model_id=model_id,
+            model_filename=model_file.filename,
+            model_content=model_content,
+            csv_filename=eval_csv.filename,
+            csv_content=csv_content
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @router.post("/models/{model_id}/audit", response_model=AuditResultResponse)
 def run_audit(model_id: str):
@@ -61,10 +70,14 @@ def set_policies(payload: List[PolicyRule]):
 def get_report(audit_id: str):
     audit_data = audit_store.get_audit(audit_id)
     if not audit_data:
-        # Fallback to demo loan model if not run yet
-        audit_data = audit_store.execute_audit("model-loan-01")
+        # Fallback to executing the audit on the requested ID
+        audit_data = audit_store.execute_audit(audit_id)
         
-    pdf_buffer = generate_pdf_report(audit_data)
+    reviews = audit_store.reviews.get(audit_id, [])
+    audit_copy = dict(audit_data)
+    audit_copy["reviews"] = reviews
+        
+    pdf_buffer = generate_pdf_report(audit_copy)
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
