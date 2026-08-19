@@ -58,6 +58,11 @@ class NumberedCanvas(canvas.Canvas):
         
         self.restoreState()
 
+def _safe_text(value: Any, default: str = "N/A") -> str:
+    if value is None:
+        return default
+    return str(value)
+
 def generate_pdf_report(audit_data: Dict[str, Any]) -> io.BytesIO:
     buffer = io.BytesIO()
     
@@ -171,15 +176,15 @@ def generate_pdf_report(audit_data: Dict[str, Any]) -> io.BytesIO:
     
     metadata_data = [
         [
-            Paragraph("Model Name:", bold_body_style), Paragraph(model.get("name", "N/A"), body_style),
-            Paragraph("Domain:", bold_body_style), Paragraph(model.get("domain", "N/A"), body_style)
+            Paragraph("Model Name:", bold_body_style), Paragraph(_safe_text(model.get("name")), body_style),
+            Paragraph("Domain:", bold_body_style), Paragraph(_safe_text(model.get("domain")), body_style)
         ],
         [
-            Paragraph("Version / ID:", bold_body_style), Paragraph(f"{model.get('version', 'N/A')} ({model.get('id', 'N/A')})", body_style),
-            Paragraph("Target Variable:", bold_body_style), Paragraph(model.get("target", "N/A"), body_style)
+            Paragraph("Version / ID:", bold_body_style), Paragraph(f"{_safe_text(model.get('version'))} ({_safe_text(model.get('id'))})", body_style),
+            Paragraph("Target Variable:", bold_body_style), Paragraph(_safe_text(model.get("target")), body_style)
         ],
         [
-            Paragraph("Owner / Team:", bold_body_style), Paragraph(model.get("owner", "N/A"), body_style),
+            Paragraph("Owner / Team:", bold_body_style), Paragraph(_safe_text(model.get("owner")), body_style),
             Paragraph("Sensitive Fields:", bold_body_style), Paragraph(sens_str, body_style)
         ],
         [

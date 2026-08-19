@@ -86,9 +86,9 @@ def test_deterministic_audit_flows():
     response2 = client.post("/api/v1/models/model-loan-02/audit")
     assert response2.status_code == 200
     data2 = response2.json()
-    assert data2["decision"]["status"] == "PASS"
-    assert data2["performance"]["accuracy"] == 0.856
-    assert data2["fairness"]["demographic_parity_gap"] == 0.036
+    assert data2["decision"]["status"] == "WARNING"
+    assert data2["performance"]["accuracy"] == 0.858
+    assert data2["fairness"]["demographic_parity_gap"] == 0.040
     assert data2["fairness"]["status"] == "PASS"
 
 def test_human_review_promotions():

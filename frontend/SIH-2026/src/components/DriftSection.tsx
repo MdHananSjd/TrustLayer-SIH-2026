@@ -31,7 +31,14 @@ export const DriftSection: React.FC<DriftSectionProps> = ({ drift }) => {
             Distribution shifts detected between baseline validation and production data streams:
           </p>
           <ul className="list-none pl-1 space-y-1">
-            {drift.features.map((featureItem, idx) => {
+            {drift.features
+              .filter((featureItem) => {
+                if (typeof featureItem === "object" && featureItem !== null) {
+                  return featureItem.drift_detected !== false;
+                }
+                return true;
+              })
+              .map((featureItem, idx) => {
               // Gracefully handle both string lists and dictionary lists from different API variants
               const name = typeof featureItem === "object" && featureItem !== null 
                 ? (featureItem as any).feature 

@@ -50,6 +50,7 @@ class DecisionResult(BaseModel):
     reasons: List[str]
 
 class AuditResultResponse(BaseModel):
+    audit_id: Optional[str] = None
     model: Dict[str, Any]
     performance: PerformanceMetrics
     fairness: FairnessMetrics
