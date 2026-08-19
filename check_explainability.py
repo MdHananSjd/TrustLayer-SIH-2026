@@ -1,24 +1,30 @@
 """
-check_explainability.py
+check_real_artifact.py
 
-Quick sanity check -- run from the repo root:
+Verify explain_global() / explain_local() against a REAL trained
+model and test CSV (not synthetic data).
 
-    python check_explainability.py
+Usage
+-----
+    python check_real_artifact.py
 
-Verifies:
-  1. explainability.py imports cleanly and its functions run
-  2. test_explainability.py passes under pytest
+    python check_real_artifact.py \\
+        --model-path demo-models/biased_model_02.pkl \\
+        --test-csv demo-assets/test_02.csv \\
+        --target-col approved
+
+    python check_real_artifact.py --row-index 5
 """
 
-import subprocess
+import argparse
+import os
 import sys
+import warnings
 
-import numpy as np
+warnings.filterwarnings("ignore")
+
+import joblib
 import pandas as pd
-from sklearn.compose import ColumnTransformer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from governance_engine.explainability import (
     detect_model_type,
@@ -27,71 +33,156 @@ from governance_engine.explainability import (
 )
 
 
-def check_explainability_module():
+# ---------------------------------------------------------
+# 1. CLI arguments
+# ---------------------------------------------------------
 
-    print("1) Checking explainability.py functions run correctly...")
+def parse_args():
 
-    rng = np.random.RandomState(0)
-    X = pd.DataFrame({
-        "credit_score": rng.normal(650, 40, 30),
-        "income": rng.normal(50000, 8000, 30),
-        "region": rng.choice(["North", "South"], size=30),
-    })
-    y = (X["credit_score"] > 650).astype(int)
-
-    model = Pipeline([
-        ("preprocessing", ColumnTransformer([
-            ("num", StandardScaler(), ["credit_score", "income"]),
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["region"]),
-        ])),
-        ("classifier", LogisticRegression()),
-    ])
-    model.fit(X, y)
-
-    assert detect_model_type(model) == "logistic_regression"
-    print("   - detect_model_type: OK")
-
-    global_result = explain_global(model, X)
-    assert global_result["status"] == "PASS"
-    assert len(global_result["global_features"]) > 0
-    print("   - explain_global: OK")
-
-    local_result = explain_local(model, X, row_index=0)
-    assert local_result["status"] == "PASS"
-    assert 0.0 <= local_result["predicted_probability"] <= 1.0
-    print("   - explain_local: OK")
-
-    print("   PASS -- explainability.py works.\n")
-
-
-def check_test_file():
-
-    print("2) Running test_explainability.py under pytest...")
-
-    result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/test_explainability.py", "-q"],
-        capture_output=True,
-        text=True,
+    parser = argparse.ArgumentParser(
+        description="Run explain_global()/explain_local() against a real model + test CSV.",
     )
 
-    print(result.stdout)
+    parser.add_argument(
+        "--model-path",
+        default=r"demo-models/biased_model_02.pkl",
+        help="Path to the trained model .pkl file.",
+    )
 
-    if result.returncode == 0:
-        print("   PASS -- test_explainability.py passes.\n")
-    else:
-        print("   FAIL -- see pytest output above.\n")
-        print(result.stderr)
+    parser.add_argument(
+        "--test-csv",
+        default=r"demo-assets/test_02.csv",
+        help="Path to the test CSV file.",
+    )
 
-    return result.returncode == 0
+    parser.add_argument(
+        "--target-col",
+        default="approved",
+        help="Name of the target/label column to drop before explaining.",
+    )
 
+    parser.add_argument(
+        "--row-index",
+        type=int,
+        default=0,
+        help="Row index to use for the local explanation.",
+    )
+
+    parser.add_argument(
+        "--top-n",
+        type=int,
+        default=5,
+        help="Number of top features to print for global/local results.",
+    )
+
+    return parser.parse_args()
+
+
+# ---------------------------------------------------------
+# 2. Loading + validation
+# ---------------------------------------------------------
+
+def load_model_and_data(model_path, test_csv, target_col):
+
+    if not os.path.exists(model_path):
+        print(f"FAIL: model file not found -> {model_path}")
+        sys.exit(1)
+
+    if not os.path.exists(test_csv):
+        print(f"FAIL: test CSV not found -> {test_csv}")
+        sys.exit(1)
+
+    model = joblib.load(model_path)
+
+    df = pd.read_csv(test_csv)
+
+    if target_col not in df.columns:
+        print(
+            f"FAIL: target column '{target_col}' not found in {test_csv}. "
+            f"Available columns: {list(df.columns)}"
+        )
+        sys.exit(1)
+
+    X_test = df.drop(columns=[target_col])
+
+    return model, X_test
+
+
+# ---------------------------------------------------------
+# 3. Global explanation check
+# ---------------------------------------------------------
+
+def run_global_check(model, X_test, top_n):
+
+    print("\n--- GLOBAL ---")
+
+    global_result = explain_global(model, X_test)
+
+    if global_result["status"] == "ERROR":
+        print("ERROR:", global_result["error"])
+        return False
+
+    for item in global_result["global_features"][:top_n]:
+        print(f"{item['feature']:>25}: {item['importance']:.4f}")
+
+    return True
+
+
+# ---------------------------------------------------------
+# 4. Local explanation check
+# ---------------------------------------------------------
+
+def run_local_check(model, X_test, row_index, top_n):
+
+    print(f"\n--- LOCAL (row {row_index}) ---")
+
+    local_result = explain_local(model, X_test, row_index=row_index)
+
+    if local_result["status"] == "ERROR":
+        print("ERROR:", local_result["error"])
+        return False
+
+    print(
+        "Predicted probability of approval:",
+        local_result["predicted_probability"],
+    )
+
+    for item in local_result["local_explanation"][:top_n]:
+        print(
+            f"{item['feature']:>25}: "
+            f"value={item['value']}  "
+            f"contribution={item['contribution']:.4f}"
+        )
+
+    return True
+
+
+# ---------------------------------------------------------
+# 5. Main
+# ---------------------------------------------------------
 
 if __name__ == "__main__":
 
-    check_explainability_module()
-    tests_ok = check_test_file()
+    args = parse_args()
 
-    if tests_ok:
-        print("ALL CHECKS PASSED.")
+    model, X_test = load_model_and_data(
+        args.model_path,
+        args.test_csv,
+        args.target_col,
+    )
+
+    print("Model path:", args.model_path)
+    print("Test CSV:", args.test_csv)
+    print("Detected model type:", detect_model_type(model))
+
+    global_ok = run_global_check(model, X_test, args.top_n)
+    local_ok = run_local_check(model, X_test, args.row_index, args.top_n)
+
+    print()
+
+    if global_ok and local_ok:
+        print("PASS -- both global and local explanations ran successfully.")
+        sys.exit(0)
     else:
-        print("SOME CHECKS FAILED -- see above.")
+        print("FAIL -- see errors above.")
         sys.exit(1)
