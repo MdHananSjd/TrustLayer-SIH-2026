@@ -13,7 +13,6 @@ export const auditApi = {
     dataFile: File | null,
     preloadedId: string,
     targetField?: string,
-    sensitiveField?: string,
   ): Promise<AuditResponse> => {
     try {
       let activeModelId = preloadedId;
@@ -41,7 +40,7 @@ export const auditApi = {
           version: "1.0",
           owner: "Auditor Upload",
           target: targetField || "approved",
-          sensitive_attributes: sensitiveField ? [sensitiveField] : ["gender"]
+          sensitive_attributes: ["gender"]
         };
 
         const regResponse = await fetch(`${API_BASE}/models`, {
@@ -76,7 +75,12 @@ export const auditApi = {
       } else {
         throw new Error("Invalid selection: Must select either a demo model or upload both custom model and CSV files.");
       }
-    } catch (error) {
+    } catch (error: any) {
+      // If we are in custom upload mode, we should NOT fallback to mock data!
+      if (modelFile || dataFile) {
+        throw error;
+      }
+
       console.warn(
         "⚠️ Live API call failed. Falling back to cached demo artifacts for resilience.",
         error,

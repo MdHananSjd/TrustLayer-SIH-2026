@@ -46,7 +46,6 @@ export const AuditDashboard: React.FC = () => {
     dataFile: File | null,
     selectedId: string,
     targetField?: string,
-    sensitiveField?: string,
   ) => {
     setPreloadedId(selectedId || "custom");
     setIsLoading(true);
@@ -64,7 +63,6 @@ export const AuditDashboard: React.FC = () => {
         dataFile,
         selectedId,
         targetField,
-        sensitiveField,
       );
       setAuditData(response);
     } catch (err: any) {
