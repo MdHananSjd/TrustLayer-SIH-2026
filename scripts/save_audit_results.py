@@ -7,8 +7,14 @@ from governance_engine.audit_runner import (
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEMO_DIR = BASE_DIR / "demo-assets"
-OUTPUT_DIR = DEMO_DIR / "cached-results"
+
+ASSETS_DIR = BASE_DIR / "demo-assets"
+MODELS_DIR = BASE_DIR / "demo-models"
+
+OUTPUT_DIR = (
+    ASSETS_DIR
+    / "cached-results"
+)
 
 OUTPUT_DIR.mkdir(
     parents=True,
@@ -18,25 +24,42 @@ OUTPUT_DIR.mkdir(
 
 def save_result(
     model_filename,
+    metadata_filename,
     output_filename,
 ):
 
     result = audit_model_from_files(
-        model_path=DEMO_DIR
-        / model_filename,
+        model_path=(
+            MODELS_DIR
+            / model_filename
+        ),
 
-        evaluation_csv_path=DEMO_DIR
-        / "evaluation.csv",
+        evaluation_csv_path=(
+            ASSETS_DIR
+            / "test_03.csv"
+        ),
 
-        metadata_path=DEMO_DIR
-        / "model_metadata.json",
+        metadata_path=(
+            ASSETS_DIR
+            / metadata_filename
+        ),
 
         sensitive_attribute="gender",
 
+        intersectional_attributes=[
+            "gender",
+            "age_group",
+        ],
+
         proxy_threshold=0.5,
+
+        min_intersection_group_size=10,
     )
 
-    output_path = OUTPUT_DIR / output_filename
+    output_path = (
+        OUTPUT_DIR
+        / output_filename
+    )
 
     with open(
         output_path,
@@ -59,11 +82,13 @@ def save_result(
 if __name__ == "__main__":
 
     save_result(
-        "biased_model.pkl",
-        "biased_audit.json",
+        "biased_model_03.pkl",
+        "biased_metadata_03.json",
+        "biased_audit_03.json",
     )
 
     save_result(
-        "improved_model.pkl",
-        "improved_audit.json",
+        "improved_model_03.pkl",
+        "improved_metadata_03.json",
+        "improved_audit_03.json",
     )

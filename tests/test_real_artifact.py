@@ -14,33 +14,34 @@ MODELS_DIR = BASE_DIR / "demo-models"
 def test_biased_model_real_artifact():
 
     result = audit_model_from_files(
-
         model_path=(
             MODELS_DIR
-            / "biased_model_02.pkl"
+            / "biased_model_03.pkl"
         ),
 
         evaluation_csv_path=(
             ASSETS_DIR
-            / "test_02.csv"
+            / "test_03.csv"
         ),
 
         metadata_path=(
             ASSETS_DIR
-            / "biased_metadata_02.json"
+            / "biased_metadata_03.json"
         ),
 
         sensitive_attribute="gender",
+
+        intersectional_attributes=[
+            "gender",
+            "age_group",
+        ],
     )
 
     assert "model" in result
     assert "performance" in result
     assert "fairness" in result
 
-    assert (
-        "accuracy"
-        in result["performance"]
-    )
+    assert "accuracy" in result["performance"]
 
     assert (
         "demographic_parity_gap"
@@ -61,33 +62,34 @@ def test_biased_model_real_artifact():
 def test_improved_model_real_artifact():
 
     result = audit_model_from_files(
-
         model_path=(
             MODELS_DIR
-            / "improved_model_02.pkl"
+            / "improved_model_03.pkl"
         ),
 
         evaluation_csv_path=(
             ASSETS_DIR
-            / "test_02.csv"
+            / "test_03.csv"
         ),
 
         metadata_path=(
             ASSETS_DIR
-            / "improved_metadata_02.json"
+            / "improved_metadata_03.json"
         ),
 
         sensitive_attribute="gender",
+
+        intersectional_attributes=[
+            "gender",
+            "age_group",
+        ],
     )
 
     assert "model" in result
     assert "performance" in result
     assert "fairness" in result
 
-    assert (
-        "accuracy"
-        in result["performance"]
-    )
+    assert "accuracy" in result["performance"]
 
     assert (
         "demographic_parity_gap"
