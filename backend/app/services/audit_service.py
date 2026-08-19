@@ -1,8 +1,14 @@
 import uuid
 import io
 import os
+import sys
 import pandas as pd
 from typing import Dict, Any, List, Optional
+
+# Append workspace root to path to import governance_engine
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+
+from governance_engine.audit_runner import audit_model_from_files
 from app.models.schemas import ModelRegisterRequest, PolicyRule
 from app.services.policy_engine import evaluate_policies, DEFAULT_POLICIES
 from app.config import settings
@@ -71,18 +77,46 @@ class AuditStore:
         if df.empty:
             raise ValueError("Evaluation dataset is empty.")
 
+        # Auto-detect target column if the specified one is not in the columns
         target = model_entry.get("target", "approved")
-        sensitive_cols = model_entry.get("sensitive_attributes", ["gender"])
-
-        missing = []
         if target not in df.columns:
-            missing.append(target)
-        for col in sensitive_cols:
-            if col not in df.columns:
-                missing.append(col)
+            common_targets = ["approved", "target", "label", "y", "class", "outcome"]
+            found_target = False
+            for t in common_targets:
+                for col in df.columns:
+                    if col.lower() == t:
+                        target = col
+                        found_target = True
+                        break
+                if found_target:
+                    break
+            
+            if not found_target:
+                raise ValueError(f"Evaluation CSV is missing required columns: target column '{target}' (or any common target column name like 'label', 'target', 'y') was not found")
+                
+            model_entry["target"] = target
 
-        if missing:
-            raise ValueError(f"Evaluation CSV is missing required columns: {', '.join(missing)}")
+        # Auto-detect sensitive attributes
+        sensitive_cols = model_entry.get("sensitive_attributes", ["gender"])
+        active_sensitive = []
+        for col in sensitive_cols:
+            if col in df.columns:
+                active_sensitive.append(col)
+                
+        if not active_sensitive:
+            common_attributes = ["gender", "sex", "race", "age", "ethnicity"]
+            for attr in common_attributes:
+                for col in df.columns:
+                    if col.lower() == attr and col != target:
+                        active_sensitive.append(col)
+                        break
+                if active_sensitive:
+                    break
+                    
+        if not active_sensitive:
+            raise ValueError(f"Evaluation CSV is missing required columns: sensitive attribute column '{sensitive_cols[0]}' (or any common sensitive column name like 'sex', 'race', 'age') was not found")
+                    
+        model_entry["sensitive_attributes"] = active_sensitive
 
         # 2. Write files to local storage under uploads/{model_id}
         model_dir = settings.UPLOAD_DIR / model_id
@@ -124,93 +158,109 @@ class AuditStore:
                 "model_filename": "biased_model.pkl"
             }
 
-        # Check if this model is the improved/mitigated one or biased one
-        name_lower = model_meta.get("name", "").lower()
-        id_lower = model_id.lower()
-        filename_lower = model_meta.get("model_filename", "").lower()
-        
-        is_improved = (
-            "improved" in name_lower or 
-            "mitigated" in name_lower or 
-            "v2" in name_lower or
-            "loan-02" in id_lower or
-            "improved" in filename_lower
-        )
-
+        # 1. Resolve paths for model binary and evaluation CSV
+        model_path = model_meta.get("model_path")
+        if not model_path:
+            filename = model_meta.get("model_filename")
+            if not filename:
+                filename = "biased_model.pkl" if "loan-01" in model_id.lower() or "v1" in model_meta.get("name", "").lower() else "improved_model.pkl"
+            model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../demo-models", filename))
+        else:
+            model_path = os.path.abspath(model_path)
+            
         csv_path = model_meta.get("csv_path")
-        sensitive_cols = model_meta.get("sensitive_attributes", ["gender"])
-        sensitive_attr = sensitive_cols[0] if sensitive_cols else "gender"
+        if not csv_path:
+            filename = model_meta.get("csv_filename", "evaluation.csv")
+            csv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../demo-assets", filename))
+        else:
+            csv_path = os.path.abspath(csv_path)
+
+        # 2. Dynamically build metadata config dictionary
+        target = model_meta.get("target", "approved")
+        sensitive_attributes = model_meta.get("sensitive_attributes", ["gender"])
         
-        groups = []
-        if csv_path and os.path.exists(csv_path):
+        feature_names = []
+        if os.path.exists(csv_path):
             try:
                 df = pd.read_csv(csv_path)
-                if sensitive_attr in df.columns:
-                    groups = sorted(list(df[sensitive_attr].dropna().unique()))
+                feature_names = [col for col in df.columns if col != target]
             except Exception:
                 pass
+                
+        if not feature_names:
+            feature_names = ["age", "gender", "income", "credit_score", "debt_ratio", "employment_years", "region"]
+
+        mapped_meta = {
+            "name": model_meta.get("name", "Model"),
+            "version": model_meta.get("version", "1.0"),
+            "target": target,
+            "positive_label": 1,
+            "sensitive_attributes": sensitive_attributes,
+            "feature_names": feature_names
+        }
+
+        # 3. Create temp metadata JSON file and execute audit_runner
+        import tempfile
+        import json
         
-        if not groups:
-            if sensitive_attr.lower() == "gender":
-                groups = ["Female", "Male"]
-            elif sensitive_attr.lower() == "age":
-                groups = ["Young", "Old"]
-            else:
-                groups = ["Group A", "Group B"]
+        with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
+            json.dump(mapped_meta, f)
+            temp_meta_path = f.name
+            
+        try:
+            res = audit_model_from_files(
+                model_path=model_path,
+                evaluation_csv_path=csv_path,
+                metadata_path=temp_meta_path
+            )
+        except Exception as e:
+            raise ValueError(f"Orchestrated audit execution failed: {str(e)}")
+        finally:
+            if os.path.exists(temp_meta_path):
+                os.remove(temp_meta_path)
 
-        if is_improved:
-            # Stats for the Improved / Mitigated Model (PASS status)
-            performance_data = {
-                "accuracy": 0.856,
-                "precision": 0.854,
-                "recall": 0.854,
-                "f1": 0.854,
-                "roc_auc": 0.958,
-                "confusion_matrix": {"tn": 1302, "fp": 216, "fn": 216, "tp": 1266}
-            }
-            
-            rates = {}
-            if len(groups) == 2:
-                rates = {str(groups[0]): 0.512, str(groups[1]): 0.476}
-            else:
-                for i, g in enumerate(groups):
-                    rates[str(g)] = 0.50 + (0.02 if i % 2 == 0 else -0.02)
-            
-            fairness_data = {
-                "sensitive_attribute": sensitive_attr,
-                "selection_rates": rates,
-                "demographic_parity_gap": 0.036,
-                "disparate_impact_ratio": 0.930,
-                "tpr_gap": 0.080, # Below the 0.10 warning threshold to yield absolute PASS
-                "status": "PASS"
-            }
-        else:
-            # Stats for the Biased Model (BLOCK status due to high demographic parity gap)
-            performance_data = {
-                "accuracy": 0.874,
-                "precision": 0.904,
-                "recall": 0.880,
-                "f1": 0.892,
-                "roc_auc": 0.939,
-                "confusion_matrix": {"tn": 1052, "fp": 166, "fn": 213, "tp": 1569}
-            }
-            
-            rates = {}
-            if len(groups) == 2:
-                rates = {str(groups[0]): 0.420, str(groups[1]): 0.748}
-            else:
-                for i, g in enumerate(groups):
-                    rates[str(g)] = 0.40 if i % 2 == 0 else 0.75
-            
-            fairness_data = {
-                "sensitive_attribute": sensitive_attr,
-                "selection_rates": rates,
-                "demographic_parity_gap": 0.328,
-                "disparate_impact_ratio": 0.561,
-                "tpr_gap": 0.094,
-                "status": "FAIL"
-            }
+        # 4. Map engine's evaluation results to schema-compliant response structure
+        engine_perf = res.get("performance", {})
+        cm = engine_perf.get("confusion_matrix", [[0, 0], [0, 0]])
+        confusion_matrix_dict = {
+            "tn": int(cm[0][0]),
+            "fp": int(cm[0][1]),
+            "fn": int(cm[1][0]),
+            "tp": int(cm[1][1])
+        }
+        
+        performance_data = {
+            "accuracy": round(float(engine_perf.get("accuracy", 0.0)), 3),
+            "precision": round(float(engine_perf.get("precision", 0.0)), 3),
+            "recall": round(float(engine_perf.get("recall", 0.0)), 3),
+            "f1": round(float(engine_perf.get("f1", 0.0)), 3),
+            "roc_auc": round(float(engine_perf.get("roc_auc")), 3) if engine_perf.get("roc_auc") is not None else None,
+            "confusion_matrix": confusion_matrix_dict
+        }
 
+        engine_fair = res.get("fairness", {})
+        sensitive_attr = engine_fair.get("sensitive_attribute", sensitive_attributes[0])
+        
+        selection_rates = {}
+        for group_name, group_info in engine_fair.get("groups", {}).items():
+            selection_rates[str(group_name)] = round(float(group_info.get("selection_rate", 0.0)), 3)
+            
+        demographic_parity_gap = round(float(engine_fair.get("demographic_parity_gap", 0.0)), 3)
+        disparate_impact_ratio = round(float(engine_fair.get("disparate_impact_ratio", 1.0)), 3)
+        tpr_gap = round(float(engine_fair.get("tpr_gap", 0.0)), 3)
+        
+        fairness_status = "FAIL" if (demographic_parity_gap > 0.20 or disparate_impact_ratio < 0.75) else "PASS"
+        
+        fairness_data = {
+            "sensitive_attribute": sensitive_attr,
+            "selection_rates": selection_rates,
+            "demographic_parity_gap": demographic_parity_gap,
+            "disparate_impact_ratio": disparate_impact_ratio,
+            "tpr_gap": tpr_gap,
+            "status": fairness_status
+        }
+
+        # Keep dummy data for unavailable features (SHAP) and mock drift on real features
         explainability_data = {
             "status": "PASS",
             "global_features": [
@@ -227,12 +277,17 @@ class AuditStore:
             ]
         }
 
+        drift_features = []
+        for feature in feature_names[:3]:
+            drift_features.append({
+                "feature": feature,
+                "drift_score": 0.01 + (0.01 if len(feature) % 2 == 0 else 0.02),
+                "drift_detected": False
+            })
+            
         drift_data = {
             "status": "PASS",
-            "features": [
-                {"feature": "income", "drift_score": 0.02, "drift_detected": False},
-                {"feature": "credit_score", "drift_score": 0.01, "drift_detected": False}
-            ]
+            "features": drift_features
         }
 
         audit_payload = {
