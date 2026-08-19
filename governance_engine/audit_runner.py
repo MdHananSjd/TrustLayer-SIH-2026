@@ -18,6 +18,15 @@ from governance_engine.evaluator import (
     run_evaluation,
 )
 
+from governance_engine.explainability import (
+    explain_global,
+    explain_local,
+)
+
+from governance_engine.drift import (
+    detect_feature_drift,
+)
+
 
 def audit_model_from_files(
     model_path,
@@ -27,6 +36,9 @@ def audit_model_from_files(
     intersectional_attributes=None,
     proxy_threshold=0.5,
     min_intersection_group_size=5,
+    production_csv_path=None,
+    explain_row_index=0,
+    max_shap_samples=200,
 ):
     """
     Run a complete TrustLayer performance and fairness audit
@@ -232,7 +244,57 @@ def audit_model_from_files(
     )
 
     # =========================================================
-    # 9. Build model metadata section
+    # 9. Explainability (global + local SHAP)
+    # =========================================================
+
+    X_features = prediction_data["X"]
+    shap_sample = X_features.head(max_shap_samples)
+
+    global_explanation = explain_global(
+        model=model,
+        X_test=shap_sample,
+    )
+
+    local_explanation = explain_local(
+        model=model,
+        X_test=shap_sample,
+        row_index=min(explain_row_index, len(shap_sample) - 1),
+    )
+
+    explainability_result = {
+        "status": (
+            "PASS"
+            if global_explanation.get("status") == "PASS"
+            and local_explanation.get("status") == "PASS"
+            else "WARNING"
+        ),
+        "global_features": global_explanation.get("global_features", [])[:10],
+        "local_explanation": local_explanation.get("local_explanation", [])[:10],
+    }
+
+    if global_explanation.get("status") == "ERROR":
+        explainability_result["status"] = "FAIL"
+        explainability_result["error"] = global_explanation.get("error")
+
+    # =========================================================
+    # 10. Optional production drift monitoring
+    # =========================================================
+
+    drift_result = {"status": "NOT_RUN", "features": []}
+
+    if production_csv_path is not None:
+        production_path = Path(production_csv_path)
+        if production_path.exists():
+            production_df = load_evaluation_data(production_path)
+            drift_result = detect_feature_drift(
+                reference_df=dataframe,
+                production_df=production_df,
+                feature_names=metadata.get("feature_names", []),
+                exclude_columns=[metadata["target"]],
+            )
+
+    # =========================================================
+    # 11. Build model metadata section
     # =========================================================
 
     model_information = {
@@ -294,7 +356,7 @@ def audit_model_from_files(
     }
 
     # =========================================================
-    # 10. Final audit result
+    # 12. Final audit result
     # =========================================================
 
     audit_result = {
@@ -311,6 +373,12 @@ def audit_model_from_files(
             evaluation_result[
                 "fairness"
             ],
+
+        "explainability":
+            explainability_result,
+
+        "drift":
+            drift_result,
     }
 
     return audit_result

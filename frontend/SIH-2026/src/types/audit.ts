@@ -37,9 +37,15 @@ export interface ExplainabilityMetrics {
   local_explanation: LocalExplanation[];
 }
 
+export interface DriftFeature {
+  feature: string;
+  drift_score?: number;
+  drift_detected?: boolean;
+}
+
 export interface DriftMetrics {
   status: "NOT_RUN" | "PASS" | "WARNING" | "FAIL";
-  features: string[];
+  features: Array<string | DriftFeature>;
 }
 
 export interface Decision {
@@ -48,6 +54,7 @@ export interface Decision {
 }
 
 export interface AuditResponse {
+  audit_id?: string;
   model: ModelMetadata;
   performance: PerformanceMetrics;
   fairness: FairnessMetrics;

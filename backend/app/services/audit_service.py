@@ -56,6 +56,9 @@ class AuditStore:
     def get_model(self, model_id: str) -> Optional[Dict[str, Any]]:
         return self.models.get(model_id)
 
+    def list_models(self) -> List[Dict[str, Any]]:
+        return list(self.models.values())
+
     def store_artifacts(
         self,
         model_id: str,
@@ -175,6 +178,12 @@ class AuditStore:
         else:
             csv_path = os.path.abspath(csv_path)
 
+        production_csv_path = model_meta.get("production_csv_path")
+        if not production_csv_path and model_id in ("model-loan-01", "model-loan-02"):
+            production_csv_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "../../../demo-assets/production_shifted_01.csv")
+            )
+
         # 2. Dynamically build metadata config dictionary
         target = model_meta.get("target", "approved")
         sensitive_attributes = model_meta.get("sensitive_attributes", ["gender"])
@@ -211,7 +220,8 @@ class AuditStore:
             res = audit_model_from_files(
                 model_path=model_path,
                 evaluation_csv_path=csv_path,
-                metadata_path=temp_meta_path
+                metadata_path=temp_meta_path,
+                production_csv_path=production_csv_path,
             )
         except Exception as e:
             raise ValueError(f"Orchestrated audit execution failed: {str(e)}")
@@ -260,38 +270,30 @@ class AuditStore:
             "status": fairness_status
         }
 
-        # Keep dummy data for unavailable features (SHAP) and mock drift on real features
+        engine_explain = res.get("explainability", {})
         explainability_data = {
-            "status": "PASS",
-            "global_features": [
-                {"feature": "credit_score", "importance": 0.38},
-                {"feature": "income", "importance": 0.28},
-                {"feature": "debt_ratio", "importance": 0.18},
-                {"feature": "employment_years", "importance": 0.11},
-                {"feature": "age", "importance": 0.05}
-            ],
-            "local_explanation": [
-                {"feature": "credit_score", "value": 720, "contribution": 0.42},
-                {"feature": "debt_ratio", "value": 0.45, "contribution": -0.15},
-                {"feature": "income", "value": 65000, "contribution": 0.21}
-            ]
+            "status": engine_explain.get("status", "FAIL"),
+            "global_features": engine_explain.get("global_features", []),
+            "local_explanation": engine_explain.get("local_explanation", []),
         }
 
-        drift_features = []
-        for feature in feature_names[:3]:
-            drift_features.append({
-                "feature": feature,
-                "drift_score": 0.01 + (0.01 if len(feature) % 2 == 0 else 0.02),
-                "drift_detected": False
-            })
-            
+        engine_drift = res.get("drift", {"status": "NOT_RUN", "features": []})
         drift_data = {
-            "status": "PASS",
-            "features": drift_features
+            "status": engine_drift.get("status", "NOT_RUN"),
+            "features": engine_drift.get("features", []),
         }
+
+        merged_model = {
+            **res.get("model", {}),
+            **{k: v for k, v in model_meta.items() if k not in res.get("model", {})},
+            "id": model_id,
+        }
+
+        audit_id = f"audit-{uuid.uuid4().hex[:6]}"
 
         audit_payload = {
-            "model": model_meta,
+            "audit_id": audit_id,
+            "model": merged_model,
             "performance": performance_data,
             "fairness": fairness_data,
             "explainability": explainability_data,
@@ -305,7 +307,6 @@ class AuditStore:
             "reasons": reasons
         }
 
-        audit_id = f"audit-{uuid.uuid4().hex[:6]}"
         self.audits[audit_id] = audit_payload
         self.audits[model_id] = audit_payload  # Quick lookup for demo
 

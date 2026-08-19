@@ -12,6 +12,10 @@ from app.services.report_generator import generate_pdf_report
 
 router = APIRouter()
 
+@router.get("/models")
+def list_models():
+    return audit_store.list_models()
+
 @router.post("/models")
 def register_model(payload: ModelRegisterRequest):
     return audit_store.register_model(payload)

@@ -77,14 +77,17 @@ export const AuditDashboard: React.FC = () => {
 
   const handleOverrideSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auditData || !auditData.model.id) return;
+    if (!auditData) return;
+
+    const auditId = auditData.audit_id || auditData.model.id;
+    if (!auditId) return;
     
     setSubmittingReview(true);
     setOverrideStatus(null);
     
     try {
       const result = await auditApi.submitReview(
-        auditData.model.id,
+        auditId,
         reviewerName,
         reviewDecision,
         reviewReason
@@ -142,8 +145,11 @@ export const AuditDashboard: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[10px] font-mono text-slate-600">CLUSTER: ACTIVE_INTEGRITY</span>
             </div>
-            {auditData && auditData.model.id && (
-              <ReportAction modelId={auditData.model.id} auditId={auditData.model.id} />
+            {auditData && (auditData.audit_id || auditData.model.id) && (
+              <ReportAction
+                modelId={auditData.model.id || "unknown"}
+                auditId={auditData.audit_id || auditData.model.id || "unknown"}
+              />
             )}
           </div>
         </div>
